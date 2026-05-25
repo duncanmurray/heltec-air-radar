@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="440" viewBox="0 0 920 440" role="img" aria-labelledby="title desc">
+  <title id="title">Heltec Air Radar screen mockups</title>
+  <desc id="desc">Two monochrome OLED screen mockups showing the radar view and aircraft detail view.</desc>
+  <defs>
+    <style>
+      .bg { fill: #101418; }
+      .panel { fill: #050708; stroke: #7ee787; stroke-width: 3; }
+      .pixel { fill: #7ee787; font: 22px monospace; }
+      .label { fill: #c9d1d9; font: 20px system-ui, sans-serif; }
+      .line { stroke: #7ee787; stroke-width: 3; fill: none; }
+      .thin { stroke: #7ee787; stroke-width: 2; fill: none; opacity: 0.9; }
+      .dot { fill: #7ee787; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="920" height="440"/>
+
+  <text class="label" x="165" y="42">Radar View</text>
+  <rect class="panel" x="120" y="64" width="192" height="320" rx="4"/>
+  <text class="pixel" x="140" y="96">HOME</text>
+  <text class="pixel" x="250" y="96">04</text>
+  <circle class="thin" cx="216" cy="204" r="82"/>
+  <circle class="thin" cx="216" cy="204" r="41"/>
+  <line class="thin" x1="134" y1="204" x2="298" y2="204"/>
+  <line class="thin" x1="216" y1="122" x2="216" y2="286"/>
+  <line class="line" x1="216" y1="204" x2="284" y2="158"/>
+  <rect class="dot" x="246" y="168" width="7" height="7"/>
+  <rect class="dot" x="198" y="238" width="7" height="7"/>
+  <rect class="dot" x="174" y="188" width="7" height="7"/>
+  <rect class="dot" x="272" y="228" width="7" height="7"/>
+  <text class="pixel" x="140" y="314">BAW123</text>
+  <text class="pixel" x="140" y="342">08km NW</text>
+  <text class="pixel" x="140" y="370">3200ft</text>
+
+  <text class="label" x="595" y="42">Aircraft Detail</text>
+  <rect class="panel" x="560" y="64" width="192" height="320" rx="4"/>
+  <text class="pixel" x="608" y="96">01/04</text>
+  <text class="pixel" x="580" y="142">BAW123</text>
+  <text class="pixel" x="580" y="176">A320</text>
+  <text class="pixel" x="580" y="224">08km NW</text>
+  <text class="pixel" x="580" y="258">3200ft</text>
+  <text class="pixel" x="580" y="306">NW 287</text>
+  <text class="pixel" x="580" y="340">244kt</text>
+  <text class="pixel" x="580" y="374">HOLD=RAD</text>
+</svg>

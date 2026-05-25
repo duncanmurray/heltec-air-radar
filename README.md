@@ -4,6 +4,10 @@ Animated aircraft radar for the Heltec WiFi LoRa 32 / HTIT-WB32 ESP32 board with
 
 The sketch connects to WiFi, fetches nearby aircraft from the public ADS-B API at `api.adsb.lol`, and displays a small old-radar-style sweep. Aircraft positions are projected locally between network updates so the display keeps moving even when the API is slow.
 
+![Radar and aircraft detail screen mockups](docs/screens.svg)
+
+The radar screen shows aircraft count, a sweep, nearby targets, and the nearest aircraft summary. The detail screen is opened with the `PRG` button and shows one aircraft at a time.
+
 ## Features
 
 - Portrait OLED radar display
