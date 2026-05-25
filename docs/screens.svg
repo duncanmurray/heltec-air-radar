@@ -35,11 +35,19 @@
   <text class="label" x="595" y="42">Aircraft Detail</text>
   <rect class="panel" x="560" y="64" width="192" height="320" rx="4"/>
   <text class="pixel" x="608" y="96">01/04</text>
-  <text class="pixel" x="580" y="142">BAW123</text>
-  <text class="pixel" x="580" y="176">A320</text>
-  <text class="pixel" x="580" y="224">08km NW</text>
-  <text class="pixel" x="580" y="258">3200ft</text>
-  <text class="pixel" x="580" y="306">NW 287</text>
-  <text class="pixel" x="580" y="340">244kt</text>
-  <text class="pixel" x="580" y="374">HOLD=RAD</text>
+  <path class="line" d="M584 124 h112 q10 0 20 7 l16 8 -16 8 q-10 7 -20 7 H584 q-8 0 -14 -5 l-8 -7 8 -7 q6 -5 14 -5z"/>
+  <path class="line" d="M622 124 L580 102 L648 124"/>
+  <path class="line" d="M624 154 L582 176 L650 154"/>
+  <path class="line" d="M582 127 L562 110 L584 151"/>
+  <circle class="dot" cx="615" cy="135" r="2"/>
+  <circle class="dot" cx="632" cy="135" r="2"/>
+  <circle class="dot" cx="649" cy="135" r="2"/>
+  <text class="pixel" x="580" y="196">CALL BAW123</text>
+  <text class="pixel" x="580" y="222">MODEL A320</text>
+  <text class="pixel" x="580" y="248">TYPE AIRLINE</text>
+  <text class="pixel" x="580" y="274">OPER BA</text>
+  <text class="pixel" x="580" y="300">POS 08km NW</text>
+  <text class="pixel" x="580" y="326">ALT 3200ft</text>
+  <text class="pixel" x="580" y="352">HDG SE 142</text>
+  <text class="pixel" x="580" y="378">LHR&gt;JFK</text>
 </svg>

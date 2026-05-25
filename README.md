@@ -6,7 +6,7 @@ The sketch connects to WiFi, fetches nearby aircraft from the public ADS-B API a
 
 ![Radar and aircraft detail screen mockups](docs/screens.svg)
 
-The radar screen shows aircraft count, a sweep, nearby targets, and the nearest aircraft summary. The detail screen is opened with the `PRG` button and shows one aircraft at a time.
+The radar screen shows aircraft count, a sweep, nearby targets, and the nearest aircraft summary. The detail screen is opened with the `PRG` button and shows one aircraft at a time with aircraft art, model, type, operator, position, altitude, heading, speed, and route when enrichment data is available.
 
 ## Features
 
@@ -18,6 +18,8 @@ The radar screen shows aircraft count, a sweep, nearby targets, and the nearest 
   - short press: open/cycle aircraft detail pages
   - long press: return to radar
 - Battery voltage reading on `GPIO37`
+- Aircraft detail enrichment from ADSBDB for model, operator, and origin/destination when available
+- Multiple aircraft art families: helicopter, prop, twin prop, business jet, airliner, heavy jet, cargo, military, glider, and fallback
 - Sanitized MicroPython prototype included for reference
 
 ## Hardware
@@ -79,6 +81,11 @@ If upload fails to enter the bootloader automatically, hold `PRG`, tap reset, th
 Aircraft data comes from:
 
 - `https://api.adsb.lol/v2/point/{lat}/{lon}/{radius_nm}`
+
+Optional aircraft detail enrichment comes from:
+
+- `https://api.adsbdb.com/v0/callsign/{callsign}`
+- `https://api.adsbdb.com/v0/aircraft/{hex}`
 
 This is a public service. Keep the refresh interval polite. The default is `30` seconds.
 

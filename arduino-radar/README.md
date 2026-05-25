@@ -8,11 +8,28 @@ Main firmware for Heltec Air Radar.
 - Fetches nearby aircraft in a background FreeRTOS task
 - Projects aircraft movement locally between fetches
 - Uses the `PRG` button for aircraft details
+- Enriches selected aircraft with model, operator, and route when ADSBDB has data
+- Draws different aircraft-art families for helicopters, prop aircraft, airliners, heavy jets, cargo, military, gliders, and unknown aircraft
 
 ## Controls
 
 - Short press `PRG`: show the nearest aircraft, then cycle through aircraft
 - Long press `PRG`: return to radar
+
+## Detail Page
+
+The detail page is static and uses a compact font to fit:
+
+- aircraft art
+- callsign
+- model
+- human-readable type
+- operator / airline
+- position relative to the radar center
+- altitude
+- heading
+- speed
+- origin to destination route, when available
 
 ## Configuration
 
