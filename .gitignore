@@ -1,0 +1,12 @@
+.arduino/
+build/
+*.bin
+*.elf
+*.map
+*.zip
+*.pyc
+__pycache__/
+
+# Local-only config variants.
+*-local.*
+secrets.*
