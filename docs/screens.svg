@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="920" height="440" viewBox="0 0 920 440" role="img" aria-labelledby="title desc">
   <title id="title">Heltec Air Radar screen mockups</title>
-  <desc id="desc">Two monochrome OLED screen mockups showing the radar view and aircraft detail view.</desc>
+  <desc id="desc">Three monochrome OLED screen mockups showing the radar view, the scrolling aircraft artwork view, and the aircraft detail view.</desc>
   <defs>
     <style>
       .bg { fill: #101418; }
@@ -32,22 +32,26 @@
   <text class="pixel" x="140" y="342">08km NW</text>
   <text class="pixel" x="140" y="370">3200ft</text>
 
-  <text class="label" x="595" y="42">Aircraft Detail</text>
-  <rect class="panel" x="560" y="64" width="192" height="320" rx="4"/>
-  <text class="pixel" x="608" y="96">01/04</text>
-  <path class="line" d="M584 124 h112 q10 0 20 7 l16 8 -16 8 q-10 7 -20 7 H584 q-8 0 -14 -5 l-8 -7 8 -7 q6 -5 14 -5z"/>
-  <path class="line" d="M622 124 L580 102 L648 124"/>
-  <path class="line" d="M624 154 L582 176 L650 154"/>
-  <path class="line" d="M582 127 L562 110 L584 151"/>
-  <circle class="dot" cx="615" cy="135" r="2"/>
-  <circle class="dot" cx="632" cy="135" r="2"/>
-  <circle class="dot" cx="649" cy="135" r="2"/>
-  <text class="pixel" x="580" y="196">CALL BAW123</text>
-  <text class="pixel" x="580" y="222">MODEL A320</text>
-  <text class="pixel" x="580" y="248">TYPE AIRLINE</text>
-  <text class="pixel" x="580" y="274">OPER BA</text>
-  <text class="pixel" x="580" y="300">POS 08km NW</text>
-  <text class="pixel" x="580" y="326">ALT 3200ft</text>
-  <text class="pixel" x="580" y="352">HDG SE 142</text>
-  <text class="pixel" x="580" y="378">LHR&gt;JFK</text>
+  <text class="label" x="442" y="42">Artwork Scroll</text>
+  <rect class="panel" x="420" y="64" width="192" height="320" rx="4"/>
+  <text class="pixel" x="440" y="96">01/04</text>
+  <text class="pixel" x="440" y="124">BAW123</text>
+  <path class="line" d="M452 176 L580 176"/>
+  <path class="line" d="M516 110 L516 286"/>
+  <path class="line" d="M468 230 L516 176 L564 230"/>
+  <path class="line" d="M488 286 L516 250 L544 286"/>
+  <text class="pixel" x="440" y="368">A320</text>
+
+  <text class="label" x="675" y="42">Aircraft Detail</text>
+  <rect class="panel" x="660" y="64" width="192" height="320" rx="4"/>
+  <text class="pixel" x="708" y="96">01/04</text>
+  <text class="pixel" x="680" y="126">CALL BAW123</text>
+  <text class="pixel" x="680" y="152">MODEL A320</text>
+  <text class="pixel" x="680" y="178">TYPE AIRLINER</text>
+  <text class="pixel" x="680" y="204">OPER BA</text>
+  <text class="pixel" x="680" y="230">POS 08km NW</text>
+  <text class="pixel" x="680" y="256">ALT 3200ft</text>
+  <text class="pixel" x="680" y="282">HDG SE 142</text>
+  <text class="pixel" x="680" y="308">SPD 240kt</text>
+  <text class="pixel" x="680" y="334">LHR&gt;JFK</text>
 </svg>

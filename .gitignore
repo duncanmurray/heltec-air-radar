@@ -6,6 +6,8 @@ build/
 *.zip
 *.pyc
 __pycache__/
+__MACOSX/
+._*
 
 # Local-only config variants.
 *-local.*

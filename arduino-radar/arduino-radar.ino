@@ -6,6 +6,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Fonts/TomThumb.h>
+#include "aircraft_bitmaps.h"
 
 const char* WIFI_SSID = "YOUR_WIFI_SSID";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
@@ -33,7 +34,11 @@ constexpr uint32_t HTTP_TIMEOUT_MS = 10000;
 constexpr uint32_t WIFI_TIMEOUT_MS = 12000;
 constexpr uint32_t BUTTON_DEBOUNCE_MS = 50;
 constexpr uint32_t BUTTON_LONG_MS = 900;
+constexpr uint32_t DETAIL_ART_SCROLL_MS = 4000;
+constexpr uint32_t DETAIL_TEXT_HOLD_MS = 14000;
 constexpr int MAX_TARGETS = 20;
+constexpr int ENRICH_CACHE_SIZE = 24;
+constexpr uint32_t ENRICH_CACHE_TTL_MS = 6UL * 60UL * 60UL * 1000UL;
 
 constexpr int RADAR_CX = 32;
 constexpr int RADAR_CY = 52;
@@ -49,6 +54,7 @@ enum AircraftArt {
   ART_CARGO,
   ART_MILITARY,
   ART_GLIDER,
+  ART_BALLOON,
   ART_UNKNOWN
 };
 
@@ -73,9 +79,22 @@ struct Target {
   bool enriched;
 };
 
+struct EnrichCacheEntry {
+  char key[16];
+  char callsign[8];
+  char model[18];
+  char readableType[14];
+  char operatorName[20];
+  char route[12];
+  uint32_t storedAtMs;
+  bool valid;
+};
+
 Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, OLED_RST);
 SemaphoreHandle_t targetMutex;
+SemaphoreHandle_t cacheMutex;
 Target targets[MAX_TARGETS];
+EnrichCacheEntry enrichCache[ENRICH_CACHE_SIZE];
 int targetCount = 0;
 bool dataStale = true;
 bool fetchInProgress = false;
@@ -98,7 +117,6 @@ float batteryVoltage() {
   int raw = analogRead(BATTERY_PIN);
   return raw * 3.6f / 4095.0f * 2.0f;
 }
-
 bool connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) return true;
 
@@ -197,6 +215,7 @@ bool parseAircraft(const String& payload, Target* outTargets, int& outCount) {
     strlcpy(target.readableType, broadAircraftType(target), sizeof(target.readableType));
     strlcpy(target.operatorName, "Unknown", sizeof(target.operatorName));
     strlcpy(target.route, "Unknown", sizeof(target.route));
+    loadEnrichCache(target);
     target.altitudeFt = item["alt_baro"].is<int>() ? item["alt_baro"].as<int>() : item["alt_geom"] | 0;
     float heading = item["track"].is<float>() ? item["track"].as<float>() : item["true_heading"] | 0.0f;
     float speed = item["gs"].is<float>() ? item["gs"].as<float>() : item["tas"] | 0.0f;
@@ -310,6 +329,79 @@ String compactId(const char* value) {
   return id;
 }
 
+void cacheKeyFor(const Target& target, char* key, size_t keySize) {
+  String id = compactId(target.hex);
+  if (!id.length()) id = compactId(target.callsign);
+  strlcpy(key, id.c_str(), keySize);
+}
+
+void applyCacheEntry(Target& target, const EnrichCacheEntry& entry) {
+  if (entry.callsign[0]) strlcpy(target.callsign, entry.callsign, sizeof(target.callsign));
+  if (entry.model[0]) strlcpy(target.model, entry.model, sizeof(target.model));
+  if (entry.readableType[0]) strlcpy(target.readableType, entry.readableType, sizeof(target.readableType));
+  if (entry.operatorName[0]) strlcpy(target.operatorName, entry.operatorName, sizeof(target.operatorName));
+  if (entry.route[0]) strlcpy(target.route, entry.route, sizeof(target.route));
+  target.enrichedAtMs = entry.storedAtMs;
+  target.enriched = true;
+}
+
+bool loadEnrichCache(Target& target) {
+  char key[16];
+  cacheKeyFor(target, key, sizeof(key));
+  if (!key[0]) return false;
+
+  bool hit = false;
+  xSemaphoreTake(cacheMutex, portMAX_DELAY);
+  for (int i = 0; i < ENRICH_CACHE_SIZE; i++) {
+    if (!enrichCache[i].valid || strcmp(enrichCache[i].key, key) != 0) continue;
+    if (millis() - enrichCache[i].storedAtMs > ENRICH_CACHE_TTL_MS) {
+      enrichCache[i].valid = false;
+      break;
+    }
+    applyCacheEntry(target, enrichCache[i]);
+    hit = true;
+    break;
+  }
+  xSemaphoreGive(cacheMutex);
+  return hit;
+}
+
+void storeEnrichCache(const Target& target) {
+  char key[16];
+  cacheKeyFor(target, key, sizeof(key));
+  if (!key[0]) return;
+
+  xSemaphoreTake(cacheMutex, portMAX_DELAY);
+  int slot = -1;
+  uint32_t oldest = UINT32_MAX;
+  for (int i = 0; i < ENRICH_CACHE_SIZE; i++) {
+    if (enrichCache[i].valid && strcmp(enrichCache[i].key, key) == 0) {
+      slot = i;
+      break;
+    }
+    if (!enrichCache[i].valid) {
+      slot = i;
+      break;
+    }
+    if (enrichCache[i].storedAtMs < oldest) {
+      oldest = enrichCache[i].storedAtMs;
+      slot = i;
+    }
+  }
+
+  EnrichCacheEntry& entry = enrichCache[slot];
+  memset(&entry, 0, sizeof(entry));
+  strlcpy(entry.key, key, sizeof(entry.key));
+  strlcpy(entry.callsign, target.callsign, sizeof(entry.callsign));
+  strlcpy(entry.model, target.model, sizeof(entry.model));
+  strlcpy(entry.readableType, target.readableType, sizeof(entry.readableType));
+  strlcpy(entry.operatorName, target.operatorName, sizeof(entry.operatorName));
+  strlcpy(entry.route, target.route, sizeof(entry.route));
+  entry.storedAtMs = millis();
+  entry.valid = true;
+  xSemaphoreGive(cacheMutex);
+}
+
 void parseRoutePayload(const String& payload, Target& target) {
   DynamicJsonDocument doc(12288);
   if (deserializeJson(doc, payload)) return;
@@ -347,6 +439,12 @@ void parseAircraftPayload(const String& payload, Target& target) {
 }
 
 void enrichTarget(Target& target) {
+  if (loadEnrichCache(target)) {
+    Serial.print("cache ");
+    Serial.println(target.callsign);
+    return;
+  }
+
   String payload;
   String callsign = compactId(target.callsign);
   String hex = compactId(target.hex);
@@ -365,6 +463,7 @@ void enrichTarget(Target& target) {
   strlcpy(target.readableType, broadAircraftType(target), sizeof(target.readableType));
   target.enrichedAtMs = millis();
   target.enriched = true;
+  storeEnrichCache(target);
 }
 
 void fetchTask(void*) {
@@ -530,12 +629,13 @@ bool containsAny(const char* value, const char* const needles[], int count) {
 bool isMilitaryLike(const Target& target) {
   static const char* const prefixes[] = {"RCH", "RRR", "NATO", "GAF", "FAF", "IAM", "ASY", "CNV", "LAGR"};
   return startsWithAny(target.callsign, prefixes, sizeof(prefixes) / sizeof(prefixes[0])) ||
-         strcmp(target.category, "A7") == 0;
+         strcmp(target.category, "A6") == 0;
 }
 
 bool isHelicopterLike(const Target& target) {
   static const char* const prefixes[] = {"H", "R44", "R66", "EC", "AS", "B06", "B47", "S76", "S92"};
-  return startsWithAny(target.type, prefixes, sizeof(prefixes) / sizeof(prefixes[0]));
+  return startsWithAny(target.type, prefixes, sizeof(prefixes) / sizeof(prefixes[0])) ||
+         strcmp(target.category, "A7") == 0;
 }
 
 bool isLightPropLike(const Target& target) {
@@ -572,7 +672,17 @@ bool isGliderLike(const Target& target) {
          strcmp(target.category, "B1") == 0;
 }
 
+bool isBalloonLike(const Target& target) {
+  static const char* const typePrefixes[] = {"BALL", "BAL", "LTA", "SHIP"};
+  static const char* const modelWords[] = {"BALLOON", "AIRSHIP", "LIGHTER"};
+  return startsWithAny(target.type, typePrefixes, sizeof(typePrefixes) / sizeof(typePrefixes[0])) ||
+         containsAny(target.model, modelWords, sizeof(modelWords) / sizeof(modelWords[0])) ||
+         containsAny(target.readableType, modelWords, sizeof(modelWords) / sizeof(modelWords[0])) ||
+         strcmp(target.category, "B2") == 0;
+}
+
 AircraftArt aircraftArtFor(const Target& target) {
+  if (isBalloonLike(target)) return ART_BALLOON;
   if (isHelicopterLike(target)) return ART_HELICOPTER;
   if (isMilitaryLike(target)) return ART_MILITARY;
   if (isGliderLike(target)) return ART_GLIDER;
@@ -596,135 +706,68 @@ const char* broadAircraftType(const Target& target) {
     case ART_CARGO: return "Cargo";
     case ART_MILITARY: return "Military";
     case ART_GLIDER: return "Glider";
+    case ART_BALLOON: return "Balloon";
     default: return "Aircraft";
   }
 }
 
-void drawAirlinerArt(int y) {
-  display.fillRoundRect(9, y + 12, 42, 7, 3, SSD1306_WHITE);
-  display.fillTriangle(51, y + 12, 61, y + 15, 51, y + 18, SSD1306_WHITE);
-  display.fillTriangle(22, y + 12, 5, y + 3, 29, y + 12, SSD1306_WHITE);
-  display.fillTriangle(24, y + 18, 8, y + 27, 31, y + 18, SSD1306_WHITE);
-  display.fillTriangle(12, y + 12, 4, y + 5, 12, y + 18, SSD1306_WHITE);
-  display.drawPixel(20, y + 14, SSD1306_BLACK);
-  display.drawPixel(26, y + 14, SSD1306_BLACK);
-  display.drawPixel(32, y + 14, SSD1306_BLACK);
-  display.drawPixel(38, y + 14, SSD1306_BLACK);
-}
-
-void drawHeavyJetArt(int y) {
-  display.fillRoundRect(5, y + 11, 49, 9, 4, SSD1306_WHITE);
-  display.fillTriangle(54, y + 11, 63, y + 15, 54, y + 19, SSD1306_WHITE);
-  display.fillTriangle(24, y + 11, 3, y + 1, 34, y + 12, SSD1306_WHITE);
-  display.fillTriangle(25, y + 19, 5, y + 29, 35, y + 19, SSD1306_WHITE);
-  display.fillTriangle(11, y + 11, 2, y + 3, 13, y + 20, SSD1306_WHITE);
-  display.fillCircle(19, y + 21, 2, SSD1306_WHITE);
-  display.fillCircle(43, y + 21, 2, SSD1306_WHITE);
-  display.drawPixel(25, y + 14, SSD1306_BLACK);
-  display.drawPixel(32, y + 14, SSD1306_BLACK);
-  display.drawPixel(39, y + 14, SSD1306_BLACK);
-}
-
-void drawPropArt(int y) {
-  display.fillRoundRect(14, y + 13, 34, 6, 3, SSD1306_WHITE);
-  display.fillTriangle(48, y + 13, 56, y + 16, 48, y + 19, SSD1306_WHITE);
-  display.fillTriangle(24, y + 13, 8, y + 4, 30, y + 13, SSD1306_WHITE);
-  display.fillTriangle(24, y + 18, 8, y + 27, 30, y + 18, SSD1306_WHITE);
-  display.fillTriangle(16, y + 13, 7, y + 8, 16, y + 19, SSD1306_WHITE);
-  display.drawCircle(58, y + 16, 4, SSD1306_WHITE);
-  display.drawLine(58, y + 8, 58, y + 24, SSD1306_WHITE);
-  display.drawLine(50, y + 16, 63, y + 16, SSD1306_WHITE);
-  display.drawPixel(24, y + 15, SSD1306_BLACK);
-  display.drawPixel(29, y + 15, SSD1306_BLACK);
-}
-
-void drawHelicopterArt(int y) {
-  display.drawLine(8, y + 4, 56, y + 4, SSD1306_WHITE);
-  display.drawLine(32, y + 4, 32, y + 10, SSD1306_WHITE);
-  display.fillRoundRect(17, y + 12, 27, 12, 5, SSD1306_WHITE);
-  display.drawLine(44, y + 17, 59, y + 12, SSD1306_WHITE);
-  display.drawLine(59, y + 8, 59, y + 16, SSD1306_WHITE);
-  display.drawLine(55, y + 12, 63, y + 12, SSD1306_WHITE);
-  display.drawLine(22, y + 24, 17, y + 29, SSD1306_WHITE);
-  display.drawLine(39, y + 24, 44, y + 29, SSD1306_WHITE);
-  display.drawLine(13, y + 29, 48, y + 29, SSD1306_WHITE);
-  display.drawPixel(26, y + 16, SSD1306_BLACK);
-  display.drawPixel(31, y + 16, SSD1306_BLACK);
-}
-
-void drawMilitaryArt(int y) {
-  display.fillTriangle(8, y + 15, 62, y + 8, 50, y + 15, SSD1306_WHITE);
-  display.fillTriangle(8, y + 15, 62, y + 22, 50, y + 15, SSD1306_WHITE);
-  display.fillTriangle(24, y + 14, 4, y + 4, 32, y + 14, SSD1306_WHITE);
-  display.fillTriangle(24, y + 16, 4, y + 26, 32, y + 16, SSD1306_WHITE);
-  display.fillTriangle(13, y + 14, 5, y + 8, 13, y + 22, SSD1306_WHITE);
-  display.drawPixel(51, y + 15, SSD1306_BLACK);
-}
-
-void drawGenericAircraftArt(int y) {
-  display.fillRoundRect(10, y + 13, 42, 6, 3, SSD1306_WHITE);
-  display.fillTriangle(52, y + 13, 60, y + 16, 52, y + 19, SSD1306_WHITE);
-  display.fillTriangle(28, y + 13, 10, y + 4, 34, y + 13, SSD1306_WHITE);
-  display.fillTriangle(28, y + 18, 10, y + 27, 34, y + 18, SSD1306_WHITE);
-  display.fillTriangle(14, y + 13, 6, y + 8, 14, y + 19, SSD1306_WHITE);
-}
-
-void drawTwinPropArt(int y) {
-  display.fillRoundRect(12, y + 13, 38, 6, 3, SSD1306_WHITE);
-  display.fillTriangle(50, y + 13, 58, y + 16, 50, y + 19, SSD1306_WHITE);
-  display.fillTriangle(25, y + 13, 6, y + 4, 34, y + 13, SSD1306_WHITE);
-  display.fillTriangle(25, y + 18, 6, y + 27, 34, y + 18, SSD1306_WHITE);
-  display.fillTriangle(15, y + 13, 7, y + 8, 15, y + 19, SSD1306_WHITE);
-  display.drawCircle(16, y + 11, 3, SSD1306_WHITE);
-  display.drawCircle(16, y + 21, 3, SSD1306_WHITE);
-  display.drawLine(13, y + 11, 19, y + 11, SSD1306_WHITE);
-  display.drawLine(13, y + 21, 19, y + 21, SSD1306_WHITE);
-}
-
-void drawBusinessJetArt(int y) {
-  display.fillRoundRect(9, y + 13, 43, 6, 3, SSD1306_WHITE);
-  display.fillTriangle(52, y + 13, 61, y + 16, 52, y + 19, SSD1306_WHITE);
-  display.fillTriangle(26, y + 13, 10, y + 5, 33, y + 13, SSD1306_WHITE);
-  display.fillTriangle(27, y + 18, 12, y + 26, 34, y + 18, SSD1306_WHITE);
-  display.fillTriangle(10, y + 13, 4, y + 6, 13, y + 19, SSD1306_WHITE);
-  display.fillCircle(17, y + 20, 2, SSD1306_WHITE);
-  display.fillCircle(23, y + 20, 2, SSD1306_WHITE);
-  display.drawPixel(37, y + 15, SSD1306_BLACK);
-}
-
-void drawCargoArt(int y) {
-  display.fillRoundRect(5, y + 10, 47, 11, 2, SSD1306_WHITE);
-  display.fillTriangle(52, y + 10, 62, y + 15, 52, y + 20, SSD1306_WHITE);
-  display.fillTriangle(24, y + 10, 5, y + 2, 35, y + 10, SSD1306_WHITE);
-  display.fillTriangle(25, y + 20, 6, y + 28, 36, y + 20, SSD1306_WHITE);
-  display.fillTriangle(10, y + 10, 2, y + 3, 12, y + 21, SSD1306_WHITE);
-  display.drawRect(14, y + 13, 10, 5, SSD1306_BLACK);
-  display.drawRect(28, y + 13, 10, 5, SSD1306_BLACK);
-}
-
-void drawGliderArt(int y) {
-  display.drawLine(4, y + 14, 60, y + 14, SSD1306_WHITE);
-  display.drawLine(28, y + 14, 58, y + 8, SSD1306_WHITE);
-  display.drawLine(28, y + 14, 58, y + 20, SSD1306_WHITE);
-  display.fillRoundRect(12, y + 13, 25, 4, 2, SSD1306_WHITE);
-  display.fillTriangle(37, y + 13, 45, y + 15, 37, y + 17, SSD1306_WHITE);
-  display.drawLine(13, y + 13, 6, y + 7, SSD1306_WHITE);
-  display.drawLine(13, y + 16, 6, y + 23, SSD1306_WHITE);
+const uint8_t* bitmapForAircraft(const Target& target) {
+  switch (aircraftArtFor(target)) {
+    case ART_HELICOPTER: return AIRCRAFT_HELICOPTER_BMP;
+    case ART_LIGHT_PROP: return AIRCRAFT_LIGHT_PROP_BMP;
+    case ART_TWIN_PROP: return AIRCRAFT_TWIN_PROP_BMP;
+    case ART_BUSINESS_JET: return AIRCRAFT_BUSINESS_JET_BMP;
+    case ART_AIRLINER: return AIRCRAFT_AIRLINER_BMP;
+    case ART_HEAVY_JET: return AIRCRAFT_HEAVY_JET_BMP;
+    case ART_CARGO: return AIRCRAFT_CARGO_BMP;
+    case ART_MILITARY: return AIRCRAFT_MILITARY_BMP;
+    case ART_GLIDER: return AIRCRAFT_GLIDER_BMP;
+    case ART_BALLOON: return AIRCRAFT_BALLOON_BMP;
+    default: return AIRCRAFT_UNKNOWN_BMP;
+  }
 }
 
 void drawAircraftArt(const Target& target, int y) {
-  switch (aircraftArtFor(target)) {
-    case ART_HELICOPTER: drawHelicopterArt(y); break;
-    case ART_LIGHT_PROP: drawPropArt(y); break;
-    case ART_TWIN_PROP: drawTwinPropArt(y); break;
-    case ART_BUSINESS_JET: drawBusinessJetArt(y); break;
-    case ART_AIRLINER: drawAirlinerArt(y); break;
-    case ART_HEAVY_JET: drawHeavyJetArt(y); break;
-    case ART_CARGO: drawCargoArt(y); break;
-    case ART_MILITARY: drawMilitaryArt(y); break;
-    case ART_GLIDER: drawGliderArt(y); break;
-    default: drawGenericAircraftArt(y); break;
-  }
+  display.drawBitmap(4, y, bitmapForAircraft(target), AIRCRAFT_BMP_W, AIRCRAFT_BMP_H, SSD1306_WHITE);
+}
+
+void drawScrollingAircraft(const Target& target, int index, int count, uint32_t phaseMs) {
+  int screenW = display.width();
+  int screenH = display.height();
+  int travel = screenH + AIRCRAFT_BMP_H + 8;
+  int x = (screenW - AIRCRAFT_BMP_W) / 2;
+  int y = screenH + 4 - (int)((uint64_t)phaseMs * travel / DETAIL_ART_SCROLL_MS);
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setFont(NULL);
+  display.setCursor(0, 0);
+  display.printf("%02d/%02d", index + 1, count);
+  display.setCursor(0, 12);
+  display.print(target.callsign[0] ? target.callsign : "Unknown");
+  display.drawBitmap(x, y, bitmapForAircraft(target), AIRCRAFT_BMP_W, AIRCRAFT_BMP_H, SSD1306_WHITE);
+  display.setFont(&TomThumb);
+  display.setCursor(0, screenH - 8);
+  display.print(target.model[0] ? target.model : broadAircraftType(target));
+  display.setFont(NULL);
+  display.display();
+}
+
+void drawDetailWaiting() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setFont(NULL);
+  display.setCursor(0, 0);
+  display.print("DETAIL");
+  display.setCursor(0, 18);
+  display.print(fetchInProgress ? "Fetching" : "No data");
+  display.setCursor(0, 34);
+  display.print("Waiting for");
+  display.setCursor(0, 46);
+  display.print("aircraft...");
+  display.display();
 }
 
 void drawDetailRow(int& y, const char* label, String value, int valueLines = 1) {
@@ -752,9 +795,16 @@ void drawDetail() {
 
   xSemaphoreTake(targetMutex, portMAX_DELAY);
   count = targetCount;
-  if (selectedTarget >= count) selectedTarget = 0;
-  target = targets[selectedTarget];
+  if (count > 0) {
+    if (selectedTarget >= count) selectedTarget = 0;
+    target = targets[selectedTarget];
+  }
   xSemaphoreGive(targetMutex);
+
+  if (count == 0) {
+    drawDetailWaiting();
+    return;
+  }
 
   float dx = 0;
   float dy = 0;
@@ -766,9 +816,16 @@ void drawDetail() {
   display.setFont(NULL);
   display.setCursor(16, 0);
   display.printf("%02d/%02d", selectedTarget + 1, count);
-  drawAircraftArt(target, 9);
+
+  uint32_t cycleMs = DETAIL_ART_SCROLL_MS + DETAIL_TEXT_HOLD_MS;
+  uint32_t phaseMs = (millis() - detailScrollStartMs) % cycleMs;
+  if (phaseMs < DETAIL_ART_SCROLL_MS) {
+    drawScrollingAircraft(target, selectedTarget, count, phaseMs);
+    return;
+  }
+
   display.setFont(&TomThumb);
-  int rowY = 41;
+  int rowY = 13;
   drawDetailRow(rowY, "CALL", String(target.callsign), 0);
   drawDetailRow(rowY, "MODEL", String(target.model), 0);
   drawDetailRow(rowY, "TYPE", String(target.readableType), 0);
@@ -825,6 +882,7 @@ void setup() {
   display.display();
 
   targetMutex = xSemaphoreCreateMutex();
+  cacheMutex = xSemaphoreCreateMutex();
   connectWiFi();
   xTaskCreatePinnedToCore(fetchTask, "fetch", 12288, nullptr, 1, nullptr, 0);
   xTaskCreatePinnedToCore(enrichTask, "enrich", 12288, nullptr, 1, nullptr, 0);
@@ -841,9 +899,8 @@ void loop() {
     detailMode = false;
   }
 
-  if (detailMode && targetCount > 0) drawDetail();
+  if (detailMode) drawDetail();
   else {
-    detailMode = false;
     drawRadar();
   }
 
