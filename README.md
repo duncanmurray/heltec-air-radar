@@ -118,7 +118,11 @@ Current broad artwork mapping:
 | Military | `a6.svg` | High-performance / ADS-B category `A6` |
 | Glider | `b1.svg` | Glider / sailplane / ADS-B category `B1` |
 | Balloon | `f11.svg` | Balloon/lighter-than-air hints and ADS-B category `B2` |
+| Ultralight | `b4.svg` | Ultralight/hang-glider/paraglider hints and ADS-B category `B4` |
+| Skydiver | `b3.svg` | ADS-B category `B3` |
 | Unknown | `a0.svg` | Fallback |
+
+Specific ICAO type matches use a more precise silhouette before the broad bucket fallback. The current exact-match set includes `A320`, `A330`, `A340`, `A380`, `B737`, `B747`, `B767`, `B777`, `B787`, `C130`, `CRJ`, `DH8`, `E195`, `ERJ`, `F100`, `FA7X`, `GLF5`, `LEARJET`, and `MD11` families, plus generic `A1` through `A5` category fallbacks.
 
 Icons by ADS-B Radar for macOS: `https://adsb-radar.com/` and `https://apps.apple.com/app/id1538149835`.
 

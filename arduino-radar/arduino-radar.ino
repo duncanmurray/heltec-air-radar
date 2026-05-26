@@ -49,12 +49,16 @@ enum AircraftArt {
   ART_LIGHT_PROP,
   ART_TWIN_PROP,
   ART_BUSINESS_JET,
+  ART_REGIONAL_JET,
+  ART_NARROWBODY_JET,
   ART_AIRLINER,
   ART_HEAVY_JET,
   ART_CARGO,
   ART_MILITARY,
   ART_GLIDER,
   ART_BALLOON,
+  ART_ULTRALIGHT,
+  ART_SKYDIVER,
   ART_UNKNOWN
 };
 
@@ -209,7 +213,7 @@ bool parseAircraft(const String& payload, Target* outTargets, int& outCount) {
     target.dyKm = dy;
     strlcpy(target.hex, item["hex"] | "", sizeof(target.hex));
     strlcpy(target.callsign, item["flight"] | item["hex"] | "ICAO", sizeof(target.callsign));
-    strlcpy(target.type, item["t"] | item["hex"] | "", sizeof(target.type));
+    strlcpy(target.type, item["t"] | "", sizeof(target.type));
     strlcpy(target.category, item["category"] | "", sizeof(target.category));
     strlcpy(target.model, target.type, sizeof(target.model));
     strlcpy(target.readableType, broadAircraftType(target), sizeof(target.readableType));
@@ -626,10 +630,41 @@ bool containsAny(const char* value, const char* const needles[], int count) {
   return false;
 }
 
+char asciiUpper(char c) {
+  if (c >= 'a' && c <= 'z') return c - 32;
+  return c;
+}
+
+bool containsIgnoreCase(const char* value, const char* needle) {
+  if (!needle[0]) return true;
+  for (int i = 0; value[i]; i++) {
+    int j = 0;
+    while (needle[j] && value[i + j] && asciiUpper(value[i + j]) == asciiUpper(needle[j])) j++;
+    if (!needle[j]) return true;
+  }
+  return false;
+}
+
+bool containsAnyIgnoreCase(const char* value, const char* const needles[], int count) {
+  for (int i = 0; i < count; i++) {
+    if (containsIgnoreCase(value, needles[i])) return true;
+  }
+  return false;
+}
+
+bool equalsAny(const char* value, const char* const choices[], int count) {
+  for (int i = 0; i < count; i++) {
+    if (strcmp(value, choices[i]) == 0) return true;
+  }
+  return false;
+}
+
 bool isMilitaryLike(const Target& target) {
   static const char* const prefixes[] = {"RCH", "RRR", "NATO", "GAF", "FAF", "IAM", "ASY", "CNV", "LAGR"};
+  static const char* const words[] = {"AIR FORCE", "ARMY", "NAVY", "MILITARY", "NATO"};
   return startsWithAny(target.callsign, prefixes, sizeof(prefixes) / sizeof(prefixes[0])) ||
-         strcmp(target.category, "A6") == 0;
+         containsAnyIgnoreCase(target.operatorName, words, sizeof(words) / sizeof(words[0])) ||
+         containsAnyIgnoreCase(target.model, words, sizeof(words) / sizeof(words[0]));
 }
 
 bool isHelicopterLike(const Target& target) {
@@ -640,25 +675,44 @@ bool isHelicopterLike(const Target& target) {
 
 bool isLightPropLike(const Target& target) {
   static const char* const types[] = {"C150", "C152", "C172", "C182", "C206", "PA28", "P28A", "SR20", "SR22", "DA40", "DA42", "BE36"};
+  static const char* const words[] = {"CESSNA", "PIPER", "CIRRUS", "DIAMOND", "SKYHAWK", "CHEROKEE"};
   return startsWithAny(target.type, types, sizeof(types) / sizeof(types[0])) ||
-         strcmp(target.category, "A1") == 0 ||
-         strcmp(target.category, "A2") == 0;
+         containsAnyIgnoreCase(target.model, words, sizeof(words) / sizeof(words[0]));
 }
 
 bool isTwinPropLike(const Target& target) {
   static const char* const types[] = {"BE20", "BE30", "BE40", "B350", "C208", "DHC6", "AT43", "AT45", "AT72", "DH8", "E120", "JS41"};
-  return startsWithAny(target.type, types, sizeof(types) / sizeof(types[0]));
+  static const char* const words[] = {"TURBOPROP", "DASH 8", "ATR", "KING AIR", "TWIN OTTER"};
+  return startsWithAny(target.type, types, sizeof(types) / sizeof(types[0])) ||
+         containsAnyIgnoreCase(target.model, words, sizeof(words) / sizeof(words[0]));
 }
 
 bool isBusinessJetLike(const Target& target) {
   static const char* const types[] = {"C25", "C5", "C56", "C68", "CL30", "CL35", "CL60", "E35", "E45", "FA", "GLF", "GLEX", "LJ", "H25B"};
-  return startsWithAny(target.type, types, sizeof(types) / sizeof(types[0]));
+  static const char* const words[] = {"GULFSTREAM", "CITATION", "LEARJET", "FALCON", "GLOBAL", "CHALLENGER", "EMBRAER PHENOM"};
+  return startsWithAny(target.type, types, sizeof(types) / sizeof(types[0])) ||
+         containsAnyIgnoreCase(target.model, words, sizeof(words) / sizeof(words[0]));
+}
+
+bool isRegionalJetLike(const Target& target) {
+  static const char* const types[] = {"CRJ", "E13", "E14", "E17", "E19", "E29", "F70", "F100"};
+  static const char* const words[] = {"REGIONAL JET", "ERJ", "EMBRAER 1", "EMBRAER 19", "EMBRAER 17", "CRJ", "FOKKER"};
+  return startsWithAny(target.type, types, sizeof(types) / sizeof(types[0])) ||
+         containsAnyIgnoreCase(target.model, words, sizeof(words) / sizeof(words[0]));
+}
+
+bool isNarrowbodyJetLike(const Target& target) {
+  static const char* const types[] = {"A318", "A319", "A320", "A321", "B37", "B38", "B39", "B3X", "B73"};
+  static const char* const words[] = {"A320", "A321", "737", "NARROW"};
+  return startsWithAny(target.type, types, sizeof(types) / sizeof(types[0])) ||
+         containsAnyIgnoreCase(target.model, words, sizeof(words) / sizeof(words[0]));
 }
 
 bool isHeavyJetLike(const Target& target) {
   static const char* const types[] = {"B74", "B77", "B78", "A33", "A34", "A35", "A38", "MD11", "DC10"};
+  static const char* const words[] = {"WIDEBODY", "747", "767", "777", "787", "A330", "A340", "A350", "A380", "MD-11", "DC-10"};
   return startsWithAny(target.type, types, sizeof(types) / sizeof(types[0])) ||
-         strcmp(target.category, "A5") == 0;
+         containsAnyIgnoreCase(target.model, words, sizeof(words) / sizeof(words[0]));
 }
 
 bool isCargoLike(const Target& target) {
@@ -681,48 +735,148 @@ bool isBalloonLike(const Target& target) {
          strcmp(target.category, "B2") == 0;
 }
 
+bool isUltralightLike(const Target& target) {
+  static const char* const typePrefixes[] = {"ULAC", "ULTR", "PARA", "GYRO"};
+  static const char* const words[] = {"ULTRALIGHT", "MICROLIGHT", "HANG", "PARAGLIDER"};
+  return startsWithAny(target.type, typePrefixes, sizeof(typePrefixes) / sizeof(typePrefixes[0])) ||
+         containsAny(target.model, words, sizeof(words) / sizeof(words[0])) ||
+         containsAny(target.readableType, words, sizeof(words) / sizeof(words[0])) ||
+         strcmp(target.category, "B4") == 0;
+}
+
+bool isSkydiverLike(const Target& target) {
+  static const char* const words[] = {"SKYDIVER", "PARACHUTE", "PARACHUTIST"};
+  return containsAny(target.model, words, sizeof(words) / sizeof(words[0])) ||
+         containsAny(target.readableType, words, sizeof(words) / sizeof(words[0])) ||
+         strcmp(target.category, "B3") == 0;
+}
+
 AircraftArt aircraftArtFor(const Target& target) {
+  if (isSkydiverLike(target)) return ART_SKYDIVER;
   if (isBalloonLike(target)) return ART_BALLOON;
+  if (isUltralightLike(target)) return ART_ULTRALIGHT;
   if (isHelicopterLike(target)) return ART_HELICOPTER;
   if (isMilitaryLike(target)) return ART_MILITARY;
   if (isGliderLike(target)) return ART_GLIDER;
   if (isCargoLike(target)) return ART_CARGO;
   if (isTwinPropLike(target)) return ART_TWIN_PROP;
   if (isBusinessJetLike(target)) return ART_BUSINESS_JET;
+  if (isRegionalJetLike(target)) return ART_REGIONAL_JET;
   if (isLightPropLike(target)) return ART_LIGHT_PROP;
   if (isHeavyJetLike(target)) return ART_HEAVY_JET;
-  if (target.type[0]) return ART_AIRLINER;
+  if (isNarrowbodyJetLike(target)) return ART_NARROWBODY_JET;
   return ART_UNKNOWN;
 }
 
+const char* categoryAircraftType(const Target& target) {
+  if (strcmp(target.category, "A1") == 0) return "Light acft";
+  if (strcmp(target.category, "A2") == 0) return "Small acft";
+  if (strcmp(target.category, "A3") == 0) return "Large acft";
+  if (strcmp(target.category, "A4") == 0) return "Large acft";
+  if (strcmp(target.category, "A5") == 0) return "Heavy acft";
+  if (strcmp(target.category, "A6") == 0) return "High perf";
+  return nullptr;
+}
+
 const char* broadAircraftType(const Target& target) {
-  switch (aircraftArtFor(target)) {
+  AircraftArt art = aircraftArtFor(target);
+  switch (art) {
     case ART_HELICOPTER: return "Helicopter";
     case ART_LIGHT_PROP: return "Light prop";
     case ART_TWIN_PROP: return "Twin prop";
     case ART_BUSINESS_JET: return "Biz jet";
+    case ART_REGIONAL_JET: return "Reg jet";
+    case ART_NARROWBODY_JET: return "Narrowbody";
     case ART_AIRLINER: return "Airliner";
-    case ART_HEAVY_JET: return "Heavy jet";
+    case ART_HEAVY_JET: return "Widebody";
     case ART_CARGO: return "Cargo";
     case ART_MILITARY: return "Military";
     case ART_GLIDER: return "Glider";
     case ART_BALLOON: return "Balloon";
-    default: return "Aircraft";
+    case ART_ULTRALIGHT: return "Ultralight";
+    case ART_SKYDIVER: return "Skydiver";
+    default: break;
   }
+
+  const char* categoryType = categoryAircraftType(target);
+  if (categoryType) return categoryType;
+  return "Aircraft";
+}
+
+const uint8_t* modelBitmapForAircraft(const Target& target) {
+  static const char* const a320Types[] = {"A318", "A319", "A320", "A321"};
+  static const char* const a330Types[] = {"A332", "A333", "A337", "A338", "A339"};
+  static const char* const a340Types[] = {"A342", "A343", "A345", "A346"};
+  static const char* const a380Types[] = {"A388"};
+  static const char* const b737Types[] = {"B37M", "B38M", "B39M", "B3XM", "B732", "B733", "B734", "B735", "B736", "B737", "B738", "B739"};
+  static const char* const b747Types[] = {"B741", "B742", "B743", "B744", "B748", "BLCF"};
+  static const char* const b767Types[] = {"B762", "B763", "B764"};
+  static const char* const b777Types[] = {"B772", "B773", "B77L", "B77W"};
+  static const char* const b787Types[] = {"B788", "B789", "B78X"};
+  static const char* const c130Types[] = {"C130", "C30J"};
+  static const char* const crjTypes[] = {"CRJ1", "CRJ2", "CRJ7", "CRJ9", "CRJX"};
+  static const char* const dh8Types[] = {"DH8A", "DH8B", "DH8C", "DH8D"};
+  static const char* const e195Types[] = {"E190", "E195", "E290", "E295"};
+  static const char* const erjTypes[] = {"E135", "E145", "E170", "E175"};
+  static const char* const f100Types[] = {"F100", "F70"};
+  static const char* const fa7xTypes[] = {"FA7X", "FA8X"};
+  static const char* const glf5Types[] = {"GLF4", "GLF5", "GLF6", "GLEX"};
+  static const char* const learTypes[] = {"LJ31", "LJ35", "LJ40", "LJ45", "LJ55", "LJ60", "LJ70", "LJ75"};
+  static const char* const md11Types[] = {"MD11"};
+
+  if (equalsAny(target.type, a320Types, sizeof(a320Types) / sizeof(a320Types[0]))) return AIRCRAFT_A320_BMP;
+  if (equalsAny(target.type, a330Types, sizeof(a330Types) / sizeof(a330Types[0]))) return AIRCRAFT_A330_BMP;
+  if (equalsAny(target.type, a340Types, sizeof(a340Types) / sizeof(a340Types[0]))) return AIRCRAFT_A340_BMP;
+  if (equalsAny(target.type, a380Types, sizeof(a380Types) / sizeof(a380Types[0]))) return AIRCRAFT_A380_BMP;
+  if (equalsAny(target.type, b737Types, sizeof(b737Types) / sizeof(b737Types[0]))) return AIRCRAFT_B737_BMP;
+  if (equalsAny(target.type, b747Types, sizeof(b747Types) / sizeof(b747Types[0]))) return AIRCRAFT_B747_BMP;
+  if (equalsAny(target.type, b767Types, sizeof(b767Types) / sizeof(b767Types[0]))) return AIRCRAFT_B767_BMP;
+  if (equalsAny(target.type, b777Types, sizeof(b777Types) / sizeof(b777Types[0]))) return AIRCRAFT_B777_BMP;
+  if (equalsAny(target.type, b787Types, sizeof(b787Types) / sizeof(b787Types[0]))) return AIRCRAFT_B787_BMP;
+  if (equalsAny(target.type, c130Types, sizeof(c130Types) / sizeof(c130Types[0]))) return AIRCRAFT_C130_BMP;
+  if (equalsAny(target.type, crjTypes, sizeof(crjTypes) / sizeof(crjTypes[0]))) return AIRCRAFT_CRJ_BMP;
+  if (equalsAny(target.type, dh8Types, sizeof(dh8Types) / sizeof(dh8Types[0]))) return AIRCRAFT_DH8_BMP;
+  if (equalsAny(target.type, e195Types, sizeof(e195Types) / sizeof(e195Types[0]))) return AIRCRAFT_E195_BMP;
+  if (equalsAny(target.type, erjTypes, sizeof(erjTypes) / sizeof(erjTypes[0]))) return AIRCRAFT_ERJ_BMP;
+  if (equalsAny(target.type, f100Types, sizeof(f100Types) / sizeof(f100Types[0]))) return AIRCRAFT_F100_BMP;
+  if (equalsAny(target.type, fa7xTypes, sizeof(fa7xTypes) / sizeof(fa7xTypes[0]))) return AIRCRAFT_FA7X_BMP;
+  if (equalsAny(target.type, glf5Types, sizeof(glf5Types) / sizeof(glf5Types[0]))) return AIRCRAFT_GLF5_BMP;
+  if (equalsAny(target.type, learTypes, sizeof(learTypes) / sizeof(learTypes[0]))) return AIRCRAFT_LEARJET_BMP;
+  if (equalsAny(target.type, md11Types, sizeof(md11Types) / sizeof(md11Types[0]))) return AIRCRAFT_MD11_BMP;
+  return nullptr;
+}
+
+const uint8_t* categoryBitmapForAircraft(const Target& target) {
+  if (strcmp(target.category, "A1") == 0) return AIRCRAFT_CAT_A1_BMP;
+  if (strcmp(target.category, "A2") == 0) return AIRCRAFT_CAT_A2_BMP;
+  if (strcmp(target.category, "A3") == 0) return AIRCRAFT_CAT_A3_BMP;
+  if (strcmp(target.category, "A4") == 0) return AIRCRAFT_CAT_A4_BMP;
+  if (strcmp(target.category, "A5") == 0) return AIRCRAFT_CAT_A5_BMP;
+  if (strcmp(target.category, "B3") == 0) return AIRCRAFT_CAT_B3_BMP;
+  return nullptr;
 }
 
 const uint8_t* bitmapForAircraft(const Target& target) {
+  const uint8_t* modelBitmap = modelBitmapForAircraft(target);
+  if (modelBitmap) return modelBitmap;
+  const uint8_t* categoryBitmap = categoryBitmapForAircraft(target);
+  if (categoryBitmap) return categoryBitmap;
+
   switch (aircraftArtFor(target)) {
     case ART_HELICOPTER: return AIRCRAFT_HELICOPTER_BMP;
     case ART_LIGHT_PROP: return AIRCRAFT_LIGHT_PROP_BMP;
     case ART_TWIN_PROP: return AIRCRAFT_TWIN_PROP_BMP;
     case ART_BUSINESS_JET: return AIRCRAFT_BUSINESS_JET_BMP;
+    case ART_REGIONAL_JET: return AIRCRAFT_ERJ_BMP;
+    case ART_NARROWBODY_JET: return AIRCRAFT_AIRLINER_BMP;
     case ART_AIRLINER: return AIRCRAFT_AIRLINER_BMP;
     case ART_HEAVY_JET: return AIRCRAFT_HEAVY_JET_BMP;
     case ART_CARGO: return AIRCRAFT_CARGO_BMP;
     case ART_MILITARY: return AIRCRAFT_MILITARY_BMP;
     case ART_GLIDER: return AIRCRAFT_GLIDER_BMP;
     case ART_BALLOON: return AIRCRAFT_BALLOON_BMP;
+    case ART_ULTRALIGHT: return AIRCRAFT_ULTRALIGHT_BMP;
+    case ART_SKYDIVER: return AIRCRAFT_CAT_B3_BMP;
     default: return AIRCRAFT_UNKNOWN_BMP;
   }
 }
