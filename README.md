@@ -6,12 +6,14 @@ The sketch connects to WiFi, fetches nearby aircraft from the public ADS-B API a
 
 ![Radar and aircraft detail screen mockups](docs/screens.svg)
 
-The radar screen shows aircraft count, a sweep, nearby targets, and the nearest aircraft summary. The detail screen is opened with the `PRG` button and shows one aircraft at a time. It scrolls a large aircraft silhouette from bottom to top, then pauses on readable details: model, type, operator, position, altitude, heading, speed, and route when enrichment data is available.
+On boot, the sketch shows a short synthwave-style loading splash with a plane fly-in and loading bar. The radar screen then shows aircraft count, a sweep, tiny heading-aware aircraft markers, and the nearest aircraft summary. The detail screen is opened with the `PRG` button and shows one aircraft at a time. It scrolls a large aircraft silhouette from bottom to top, then pauses on readable details: model, type, operator, position, altitude, heading, speed, and route when enrichment data is available.
 
 ## Features
 
 - Portrait OLED radar display
+- Animated synthwave boot splash with plane fly-in and loading bar
 - Nearby aircraft plotted around a configurable home location
+- Tiny heading-aware radar markers using hand-tuned 8-way pixel glyphs
 - Local motion projection from aircraft speed and heading
 - Background FreeRTOS fetch task in the Arduino C++ version
 - `PRG` button support:

@@ -38,6 +38,7 @@ constexpr uint32_t DETAIL_ART_SCROLL_MS = 4000;
 constexpr uint32_t DETAIL_TEXT_HOLD_MS = 14000;
 constexpr uint32_t ACTIVE_FRAME_MS = 120;
 constexpr uint32_t STATIC_FRAME_MS = 500;
+constexpr uint32_t SPLASH_MS = 3200;
 constexpr uint8_t OLED_CONTRAST = 0x8F;
 constexpr uint32_t CPU_MHZ = 80;
 constexpr int MAX_TARGETS = 20;
@@ -556,12 +557,20 @@ void drawTarget(const Target& target) {
   int x = RADAR_CX + (int)(dx / RANGE_KM * RADAR_R);
   int y = RADAR_CY - (int)(dy / RANGE_KM * RADAR_R);
 
-  display.drawPixel(x, y, SSD1306_WHITE);
-  display.drawPixel(x + 1, y, SSD1306_WHITE);
-  display.drawPixel(x, y + 1, SSD1306_WHITE);
-
-  float nose = (target.headingDeg - 90) * DEG_TO_RAD;
-  display.drawPixel(x + (int)(cos(nose) * 3), y + (int)(sin(nose) * 3), SSD1306_WHITE);
+  static const int8_t arrowheads[8][4][2] = {
+    {{0, -2}, {0, -1}, {-1, 0}, {1, 0}},
+    {{2, -2}, {1, -1}, {0, -1}, {1, 0}},
+    {{2, 0}, {1, 0}, {0, -1}, {0, 1}},
+    {{2, 2}, {1, 1}, {1, 0}, {0, 1}},
+    {{0, 2}, {0, 1}, {-1, 0}, {1, 0}},
+    {{-2, 2}, {-1, 1}, {0, 1}, {-1, 0}},
+    {{-2, 0}, {-1, 0}, {0, -1}, {0, 1}},
+    {{-2, -2}, {-1, -1}, {-1, 0}, {0, -1}}
+  };
+  int dir = ((target.headingDeg + 22) / 45) & 7;
+  for (int i = 0; i < 4; i++) {
+    display.drawPixel(x + arrowheads[dir][i][0], y + arrowheads[dir][i][1], SSD1306_WHITE);
+  }
 }
 
 void drawRadar() {
@@ -889,6 +898,17 @@ void drawAircraftArt(const Target& target, int y) {
   display.drawBitmap(4, y, bitmapForAircraft(target), AIRCRAFT_BMP_W, AIRCRAFT_BMP_H, SSD1306_WHITE);
 }
 
+void drawCenteredText(const char* text, int y) {
+  int16_t x1 = 0;
+  int16_t y1 = 0;
+  uint16_t w = 0;
+  uint16_t h = 0;
+  display.getTextBounds(text, 0, y, &x1, &y1, &w, &h);
+  int x = max(0, (display.width() - (int)w) / 2);
+  display.setCursor(x, y);
+  display.print(text);
+}
+
 void drawScrollingAircraft(const Target& target, int index, int count, uint32_t phaseMs) {
   int screenW = display.width();
   int screenH = display.height();
@@ -900,8 +920,9 @@ void drawScrollingAircraft(const Target& target, int index, int count, uint32_t 
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setFont(NULL);
-  display.setCursor(0, 0);
-  display.printf("%02d/%02d", index + 1, count);
+  char pageText[8];
+  snprintf(pageText, sizeof(pageText), "%02d/%02d", index + 1, count);
+  drawCenteredText(pageText, 0);
   display.setCursor(0, 12);
   display.print(target.callsign[0] ? target.callsign : "Unknown");
   display.drawBitmap(x, y, bitmapForAircraft(target), AIRCRAFT_BMP_W, AIRCRAFT_BMP_H, SSD1306_WHITE);
@@ -917,14 +938,13 @@ void drawDetailWaiting() {
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setFont(NULL);
-  display.setCursor(0, 0);
-  display.print("DETAIL");
-  display.setCursor(0, 18);
-  display.print(fetchInProgress ? "Fetching" : "No data");
-  display.setCursor(0, 34);
-  display.print("Waiting for");
-  display.setCursor(0, 46);
-  display.print("aircraft...");
+  drawCenteredText("DETAIL", 4);
+  display.drawFastHLine(6, 18, display.width() - 12, SSD1306_WHITE);
+  drawCenteredText(fetchInProgress ? "FETCHING" : "NO DATA", 34);
+  drawCenteredText("AIRCRAFT", 50);
+  display.setFont(&TomThumb);
+  drawCenteredText(fetchInProgress ? "updating..." : "waiting...", 74);
+  display.setFont(NULL);
   display.display();
 }
 
@@ -983,7 +1003,7 @@ void drawDetail() {
   }
 
   display.setFont(&TomThumb);
-  int rowY = 13;
+  int rowY = 17;
   drawDetailRow(rowY, "CALL", String(target.callsign), 0);
   drawDetailRow(rowY, "MODEL", String(target.model), 0);
   drawDetailRow(rowY, "TYPE", String(target.readableType), 0);
@@ -1024,6 +1044,69 @@ String readButtonEvent() {
   return "";
 }
 
+void drawSplashScreen() {
+  uint32_t started = millis();
+  int frame = 0;
+
+  while (millis() - started < SPLASH_MS) {
+    int progress = min(52, (int)((millis() - started) * 52UL / SPLASH_MS));
+    int planeX = -30 + (int)((millis() - started) * 92UL / SPLASH_MS);
+    int planeY = 47 - (int)(sin(frame * 0.22f) * 4.0f);
+    bool fading = millis() - started > SPLASH_MS - 650;
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setFont(NULL);
+
+    if (!fading || (frame & 1) == 0) {
+      display.setTextSize(2);
+      drawCenteredText("AIR", 6);
+      drawCenteredText("RADAR", 24);
+      display.setTextSize(1);
+    }
+
+    display.drawLine(2, 55, 20, 43, SSD1306_WHITE);
+    display.drawLine(62, 55, 44, 43, SSD1306_WHITE);
+    display.drawLine(6, 63, 26, 48, SSD1306_WHITE);
+    display.drawLine(58, 63, 38, 48, SSD1306_WHITE);
+
+    if (!fading || (frame & 2) == 0) {
+      if (planeX < display.width() && planeX + 18 > 0) {
+        int bodyX = max(0, planeX);
+        int bodyW = min(18, display.width() - bodyX);
+        display.drawFastHLine(bodyX, planeY, bodyW, SSD1306_WHITE);
+      }
+      display.fillTriangle(planeX + 18, planeY - 2, planeX + 28, planeY + 2, planeX + 18, planeY + 6, SSD1306_WHITE);
+      display.fillTriangle(planeX + 8, planeY, planeX - 4, planeY - 8, planeX + 12, planeY, SSD1306_WHITE);
+      display.fillTriangle(planeX + 8, planeY + 5, planeX - 4, planeY + 13, planeX + 12, planeY + 5, SSD1306_WHITE);
+      display.drawFastVLine(planeX + 1, planeY, 6, SSD1306_WHITE);
+    }
+
+    display.setFont(&TomThumb);
+    drawCenteredText("NEARBY FLIGHTS", 76);
+    display.setFont(NULL);
+    display.drawRect(5, 91, 54, 8, SSD1306_WHITE);
+    display.fillRect(6, 92, progress, 6, SSD1306_WHITE);
+    display.setFont(&TomThumb);
+    drawCenteredText("PRG cycle", 108);
+    drawCenteredText("HOLD radar", 120);
+    display.setFont(NULL);
+
+    display.display();
+    delay(90);
+    frame++;
+  }
+
+  for (int pass = 0; pass < 4; pass++) {
+    for (int y = pass; y < display.height(); y += 4) {
+      display.drawFastHLine(0, y, display.width(), SSD1306_BLACK);
+    }
+    display.display();
+    delay(85);
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   setCpuFrequencyMhz(CPU_MHZ);
@@ -1042,6 +1125,7 @@ void setup() {
   display.ssd1306_command(OLED_CONTRAST);
   display.clearDisplay();
   display.display();
+  drawSplashScreen();
 
   targetMutex = xSemaphoreCreateMutex();
   cacheMutex = xSemaphoreCreateMutex();

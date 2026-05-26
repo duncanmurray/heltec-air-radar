@@ -24,10 +24,10 @@
   <line class="thin" x1="134" y1="204" x2="298" y2="204"/>
   <line class="thin" x1="216" y1="122" x2="216" y2="286"/>
   <line class="line" x1="216" y1="204" x2="284" y2="158"/>
-  <rect class="dot" x="246" y="168" width="7" height="7"/>
-  <rect class="dot" x="198" y="238" width="7" height="7"/>
-  <rect class="dot" x="174" y="188" width="7" height="7"/>
-  <rect class="dot" x="272" y="228" width="7" height="7"/>
+  <path class="dot" d="M250 165 h3 v3 h-3 v-3 M247 168 h3 v3 h-3 v-3 M253 168 h3 v3 h-3 v-3 M250 171 h3 v3 h-3 v-3"/>
+  <path class="dot" d="M198 235 h3 v3 h-3 v-3 M195 238 h3 v3 h-3 v-3 M201 238 h3 v3 h-3 v-3 M198 241 h3 v3 h-3 v-3"/>
+  <path class="dot" d="M174 185 h3 v3 h-3 v-3 M171 188 h3 v3 h-3 v-3 M177 188 h3 v3 h-3 v-3 M171 191 h3 v3 h-3 v-3"/>
+  <path class="dot" d="M276 226 h3 v3 h-3 v-3 M273 229 h3 v3 h-3 v-3 M279 229 h3 v3 h-3 v-3 M276 232 h3 v3 h-3 v-3"/>
   <text class="pixel" x="140" y="314">BAW123</text>
   <text class="pixel" x="140" y="342">08km NW</text>
   <text class="pixel" x="140" y="370">3200ft</text>
