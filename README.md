@@ -23,6 +23,7 @@ The radar screen shows aircraft count, a sweep, nearby targets, and the nearest 
 - Multiple aircraft art families: helicopter, prop, twin prop, business jet, airliner, heavy jet, cargo, military, glider, balloon, and fallback
 - Detail mode stays open during temporary no-data fetches and updates when aircraft return
 - Short-lived in-memory enrichment cache for callsign, model, type, operator, and route data
+- Battery-friendly defaults: 80 MHz CPU, Bluetooth disabled, WiFi modem sleep, mild OLED contrast reduction, and slower redraws on static detail screens
 - Sanitized MicroPython prototype included for reference
 
 ## Screens

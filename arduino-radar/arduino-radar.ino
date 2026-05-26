@@ -36,6 +36,10 @@ constexpr uint32_t BUTTON_DEBOUNCE_MS = 50;
 constexpr uint32_t BUTTON_LONG_MS = 900;
 constexpr uint32_t DETAIL_ART_SCROLL_MS = 4000;
 constexpr uint32_t DETAIL_TEXT_HOLD_MS = 14000;
+constexpr uint32_t ACTIVE_FRAME_MS = 120;
+constexpr uint32_t STATIC_FRAME_MS = 500;
+constexpr uint8_t OLED_CONTRAST = 0x8F;
+constexpr uint32_t CPU_MHZ = 80;
 constexpr int MAX_TARGETS = 20;
 constexpr int ENRICH_CACHE_SIZE = 24;
 constexpr uint32_t ENRICH_CACHE_TTL_MS = 6UL * 60UL * 60UL * 1000UL;
@@ -125,7 +129,7 @@ bool connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) return true;
 
   WiFi.mode(WIFI_STA);
-  WiFi.setSleep(false);
+  WiFi.setSleep(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   uint32_t started = millis();
@@ -1022,6 +1026,8 @@ String readButtonEvent() {
 
 void setup() {
   Serial.begin(115200);
+  setCpuFrequencyMhz(CPU_MHZ);
+  btStop();
   pinMode(PROGRAM_BUTTON, INPUT_PULLUP);
   analogReadResolution(12);
   analogSetPinAttenuation(BATTERY_PIN, ADC_11db);
@@ -1032,6 +1038,8 @@ void setup() {
     for (;;) delay(1000);
   }
   display.setRotation(OLED_ROTATION);
+  display.ssd1306_command(SSD1306_SETCONTRAST);
+  display.ssd1306_command(OLED_CONTRAST);
   display.clearDisplay();
   display.display();
 
@@ -1043,6 +1051,7 @@ void setup() {
 }
 
 void loop() {
+  uint32_t frameDelayMs = ACTIVE_FRAME_MS;
   String event = readButtonEvent();
   if (event == "short" && targetCount > 0) {
     if (!detailMode) selectedTarget = 0;
@@ -1053,10 +1062,22 @@ void loop() {
     detailMode = false;
   }
 
-  if (detailMode) drawDetail();
-  else {
+  if (detailMode) {
+    drawDetail();
+    int count = 0;
+    xSemaphoreTake(targetMutex, portMAX_DELAY);
+    count = targetCount;
+    xSemaphoreGive(targetMutex);
+    if (count == 0) {
+      frameDelayMs = STATIC_FRAME_MS;
+    } else {
+      uint32_t cycleMs = DETAIL_ART_SCROLL_MS + DETAIL_TEXT_HOLD_MS;
+      uint32_t phaseMs = (millis() - detailScrollStartMs) % cycleMs;
+      if (phaseMs >= DETAIL_ART_SCROLL_MS) frameDelayMs = STATIC_FRAME_MS;
+    }
+  } else {
     drawRadar();
   }
 
-  delay(120);
+  delay(frameDelayMs);
 }
